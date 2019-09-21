@@ -172,6 +172,10 @@ class ProgramCounter extends Register {
 		}
 	}
 
+	getValue() {
+		return parseInt(this.storage.join(""), 2);
+	}
+
 	updateControlPins(IN, OUT, COUNT) {
 		if (IN) this.busConnectMode = 1;
 		else if (OUT) this.busConnectMode = 2;
@@ -267,6 +271,8 @@ class ControlUnit {
 			AI : 0,
 			AO : 0,
 			BI : 0,
+			OI : 0,
+			OO : 0,
 			SO : 0,
 			SU : 0,
 			MAI : 0,
@@ -290,26 +296,31 @@ class ControlUnit {
 
 		this.connectedModules = {};
 
-		let AI  = 0b100000000000000;
-		let AO  = 0b010000000000000;
-		let BI  = 0b001000000000000;
-		let SO  = 0b000100000000000;
-		let SU  = 0b000010000000000;
-		let MAI = 0b000001000000000;
-		let RI  = 0b000000100000000;
-		let RO  = 0b000000010000000;
-		let PCI = 0b000000001000000;
-		let PCO = 0b000000000100000;
-		let PCC = 0b000000000010000;
-		let II  = 0b000000000001000;
-		let IO  = 0b000000000000100;
-		let YLD = 0b000000000000010;
-		let HLT = 0b000000000000001;
+		let AI  = 0b10000000000000000;
+		let AO  = 0b01000000000000000;
+		let BI  = 0b00100000000000000;
+		let OI  = 0b00010000000000000;
+		let OO  = 0b00001000000000000;
+		let SO  = 0b00000100000000000;
+		let SU  = 0b00000010000000000;
+		let MAI = 0b00000001000000000;
+		let RI  = 0b00000000100000000;
+		let RO  = 0b00000000010000000;
+		let PCI = 0b00000000001000000;
+		let PCO = 0b00000000000100000;
+		let PCC = 0b00000000000010000;
+		let II  = 0b00000000000001000;
+		let IO  = 0b00000000000000100;
+		let YLD = 0b00000000000000010;
+		let HLT = 0b00000000000000001;
 
 		this.instructionSet = [
 			[PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD], //LDA
 			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO, YLD], //ADD
-			[PCO + MAI, RO + II + PCC, 0, HLT] //HLT
+			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI, YLD], //ADDA
+			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI, YLD], //ADDO
+			[PCO + MAI, RO + II + PCC, IO + MAI, RI + AO, YLD], //STOA
+			[PCO + MAI, RO + II + PCC, HLT] //HLT
 		];
 
 		/* Current instruction held in instruction register */
@@ -318,9 +329,10 @@ class ControlUnit {
 	}
 
 	updateAllPins() {
+		this.connectedModules["ALU"].updateControlPins(this.pins.SO, this.pins.SU);
 		this.connectedModules["A"].updateControlPins(this.pins.AI, this.pins.AO);
 		this.connectedModules["B"].updateControlPins(this.pins.BI);
-		this.connectedModules["ALU"].updateControlPins(this.pins.SO, this.pins.SU);
+		this.connectedModules["O"].updateControlPins(this.pins.OI, this.pins.OO);
 		this.connectedModules["RAM"].updateControlPins(this.pins.RI, this.pins.RO);
 		this.connectedModules["PC"].updateControlPins(this.pins.PCI, this.pins.PCO, this.pins.PCC);
 		this.connectedModules["ADR"].updateControlPins(this.pins.MAI);
@@ -330,6 +342,13 @@ class ControlUnit {
 			console.log(logger.next().value);
 			CLK.halt();
 		}
+	}
+
+	zeroPins() {
+		for (let i of Object.keys(this.pins)) {
+			this.pins[i] = 0;
+		}
+		this.updateAllPins();
 	}
 
 	fetchMicroInstruction() {
@@ -350,6 +369,7 @@ class ControlUnit {
 		if (this.pins.YLD) {
 			console.log(logger.next().value);
 			this.microInstructionCount = 0;
+			console.log(PC.getValue());
 		}
 		else {
 			this.updateAllPins();
@@ -399,6 +419,7 @@ BUS = new Proxy(bus, busHandler);
 
 let A = new Register(0);
 let B = new Register(0);
+let O = new Register(0);
 let RAM = new Memory(0, 4);
 ADR = new AddressRegister(RAM);
 ALU = new Alu();
@@ -411,11 +432,15 @@ CLK = new Clock(function() {
 	if (this.output) {
 		CPU.executeMicroInstruction();
 	}
-}, 10);
+	else {
+		CPU.zeroPins();
+	}
+}, 100);
 
 function buildComputer() {
 	CPU.connectedModules["A"] = A;
 	CPU.connectedModules["B"] = B;
+	CPU.connectedModules["O"] = O;
 	CPU.connectedModules["RAM"] = RAM;
 	CPU.connectedModules["ADR"] = ADR;
 	CPU.connectedModules["ALU"] = ALU;
@@ -426,15 +451,17 @@ function buildComputer() {
 function* logInfo() {
 	yield "Register A loaded with: " + A.storage;
 	yield "Register B loaded with: " + B.storage;
-	yield "Result of computation: " + ALU.storage;
+	yield "Register A loaded with: " + A.storage;
+	yield "Result of computation: " + RAM._storage[13].join("");
 }
 
 let logger = logInfo();
 
 /* Write program */
 RAM._storage[0] = [0, 0, 0, 0, 1, 1, 1, 1];
-RAM._storage[1] = [0, 0, 0, 1, 1, 1, 1, 0];
-RAM._storage[2] = [0, 0, 1, 0, 0, 0, 0, 0];
+RAM._storage[1] = [0, 0, 1, 0, 1, 1, 1, 0];
+RAM._storage[2] = [0, 1, 0, 0, 1, 1, 0, 1];
+RAM._storage[3] = [0, 1, 0, 1, 0, 0, 0, 0];
 
 RAM._storage[15] = [0, 0, 0, 0, 0, 1, 0, 1];
 RAM._storage[14] = [0, 0, 0, 0, 0, 0, 1, 1];
