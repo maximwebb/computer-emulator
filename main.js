@@ -66,11 +66,11 @@ class Alu extends Register {
 	}
 
 	updateControlPins(OUT, SUB) {
+		this.subtractMode = SUB;
 		if (OUT) {
 			this.computeOutput();
 			this.busConnectMode = 2;
 		}
-		this.subtractMode = SUB;
 	}
 
 	computeOutput() {
@@ -316,10 +316,12 @@ class ControlUnit {
 
 		this.instructionSet = [
 			[PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD], //LDA
-			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO, YLD], //ADD
 			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI, YLD], //ADDA
 			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI, YLD], //ADDO
+			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI + SU, YLD], //SUBA
+			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI + SU, YLD], //SUBO
 			[PCO + MAI, RO + II + PCC, IO + MAI, RI + AO, YLD], //STOA
+			[PCO + MAI, RO + II + PCC, IO + MAI, RI + OO, YLD], //STOO
 			[PCO + MAI, RO + II + PCC, HLT] //HLT
 		];
 
@@ -344,6 +346,7 @@ class ControlUnit {
 		}
 	}
 
+	/* Triggered on falling edge of clock */
 	zeroPins() {
 		for (let i of Object.keys(this.pins)) {
 			this.pins[i] = 0;
@@ -459,9 +462,9 @@ let logger = logInfo();
 
 /* Write program */
 RAM._storage[0] = [0, 0, 0, 0, 1, 1, 1, 1];
-RAM._storage[1] = [0, 0, 1, 0, 1, 1, 1, 0];
-RAM._storage[2] = [0, 1, 0, 0, 1, 1, 0, 1];
-RAM._storage[3] = [0, 1, 0, 1, 0, 0, 0, 0];
+RAM._storage[1] = [0, 1, 0, 0, 1, 1, 1, 0];
+RAM._storage[2] = [0, 1, 1, 0, 1, 1, 0, 1];
+RAM._storage[3] = [0, 1, 1, 1, 0, 0, 0, 0];
 
 RAM._storage[15] = [0, 0, 0, 0, 0, 1, 0, 1];
 RAM._storage[14] = [0, 0, 0, 0, 0, 0, 1, 1];
