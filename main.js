@@ -97,7 +97,7 @@ class Alu extends Register {
 		if (this.storage.reduce((x, y) => (x + y)) === 0) {
 			CPU.flags.ZERO = 1;
 		}
-		if (this.carryOutBit === 1) {
+		if (this.carryOutBit === 1 && !CPU.flags.ZERO) {
 			CPU.flags.CARRY = 1;
 		}
 	}
@@ -271,6 +271,7 @@ class ControlUnit {
 			AI : 0,
 			AO : 0,
 			BI : 0,
+			BO : 0,
 			OI : 0,
 			OO : 0,
 			SO : 0,
@@ -296,37 +297,45 @@ class ControlUnit {
 
 		this.connectedModules = {};
 
-		let AI  = 0b10000000000000000;
-		let AO  = 0b01000000000000000;
-		let BI  = 0b00100000000000000;
-		let OI  = 0b00010000000000000;
-		let OO  = 0b00001000000000000;
-		let SO  = 0b00000100000000000;
-		let SU  = 0b00000010000000000;
-		let MAI = 0b00000001000000000;
-		let RI  = 0b00000000100000000;
-		let RO  = 0b00000000010000000;
-		let PCI = 0b00000000001000000;
-		let PCO = 0b00000000000100000;
-		let PCC = 0b00000000000010000;
-		let II  = 0b00000000000001000;
-		let IO  = 0b00000000000000100;
-		let YLD = 0b00000000000000010;
-		let HLT = 0b00000000000000001;
+		let AI  = 0b100000000000000000;
+		let AO  = 0b010000000000000000;
+		let BI  = 0b001000000000000000;
+		let BO  = 0b000100000000000000;
+		let OI  = 0b000010000000000000;
+		let OO  = 0b000001000000000000;
+		let SO  = 0b000000100000000000;
+		let SU  = 0b000000010000000000;
+		let MAI = 0b000000001000000000;
+		let RI  = 0b000000000100000000;
+		let RO  = 0b000000000010000000;
+		let PCI = 0b000000000001000000;
+		let PCO = 0b000000000000100000;
+		let PCC = 0b000000000000010000;
+		let II  = 0b000000000000001000;
+		let IO  = 0b000000000000000100;
+		let YLD = 0b000000000000000010;
+		let HLT = 0b000000000000000001;
 
+		//TODO: assign branch logic instructions properties that can be checked.
 		this.instructionSet = [
-			[PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD], //LDA
-			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI, YLD], //ADDA
-			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI, YLD], //ADDO
-			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI + SU, YLD], //SUBA
-			[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI + SU, YLD], //SUBO
-			[PCO + MAI, RO + II + PCC, IO + MAI, RI + AO, YLD], //STOA
-			[PCO + MAI, RO + II + PCC, IO + MAI, RI + OO, YLD], //STOO
-			[PCO + MAI, RO + II + PCC, HLT] //HLT
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD]], //LDA
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + AO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AO, YLD]], //LDO
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI, YLD]], //ADDA
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI, YLD]],//ADDO
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI + SU, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI + SU, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + AI + SU, YLD]],//SUBA
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI + SU, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI + SU, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + BI, SO + OI + SU, YLD]],//SUBO
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RI + AO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RI + AO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RI + AO, YLD]],//STOA
+			[[PCO + MAI, RO + II + PCC, IO + MAI, RI + OO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RI + OO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RI + OO, YLD]],//STOO
+			[[PCO + MAI, RO + II + PCC, IO + MAI, AO + OI, BO + AI, OO + BI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, AO + OI, BO + AI, OO + BI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, AO + OI, BO + AI, OO + BI, YLD]],//SWAB
+			[[PCO + MAI, RO + II + PCC, IO + MAI, AO + BI, OO + AI, BO + OI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, AO + OI, BO + AI, OO + BI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, AO + OI, BO + AI, OO + BI, YLD]], //SWAO
+			[[PCO + MAI, RO + II + PCC, YLD], [PCO + MAI, RO + II + PCC, IO + PCI, YLD], [PCO + MAI, RO + II + PCC, YLD]], //JMPZ
+			[[PCO + MAI, RO + II + PCC, YLD], [PCO + MAI, RO + II + PCC, YLD], [PCO + MAI, RO + II + PCC, IO + PCI, YLD]], //JMPC
+			[[PCO + MAI, RO + II + PCC, HLT], [PCO + MAI, RO + II + PCC, HLT], [PCO + MAI, RO + II + PCC, HLT]] //HLT
 		];
 
 		/* Current instruction held in instruction register */
 		this.instruction = [0, 0, 0, 0, 0, 0, 0, 0];
+		/* Set whenever an instruction requires branching logic */
 		this.microInstructionCount = 0;
 	}
 
@@ -354,9 +363,12 @@ class ControlUnit {
 		this.updateAllPins();
 	}
 
+	/* Acts as getter for instruction set */
 	fetchMicroInstruction() {
 		let instrAdr = parseInt(this.instruction.slice(0, 4).join(""), 2);
-		let microInstr = (this.instructionSet[instrAdr][this.microInstructionCount] + (1 << this.pinNumber)).toString(2).split("");
+		let microInstr;
+		let flag = this.flags.CARRY + this.flags.ZERO * 2;
+		microInstr = (this.instructionSet[instrAdr][flag][this.microInstructionCount] + (1 << this.pinNumber)).toString(2).split("");
 		microInstr.shift();
 		return microInstr;
 	}
@@ -438,7 +450,7 @@ CLK = new Clock(function() {
 	else {
 		CPU.zeroPins();
 	}
-}, 100);
+}, 10);
 
 function buildComputer() {
 	CPU.connectedModules["A"] = A;
@@ -456,17 +468,20 @@ function* logInfo() {
 	yield "Register B loaded with: " + B.storage;
 	yield "Register A loaded with: " + A.storage;
 	yield "Result of computation: " + RAM._storage[13].join("");
+	yield "Result of computation: " + RAM._storage[13].join("");
 }
 
 let logger = logInfo();
 
 /* Write program */
 RAM._storage[0] = [0, 0, 0, 0, 1, 1, 1, 1];
-RAM._storage[1] = [0, 1, 0, 0, 1, 1, 1, 0];
-RAM._storage[2] = [0, 1, 1, 0, 1, 1, 0, 1];
-RAM._storage[3] = [0, 1, 1, 1, 0, 0, 0, 0];
+RAM._storage[1] = [0, 1, 0, 1, 1, 1, 1, 0];
+RAM._storage[2] = [1, 0, 1, 0, 0, 1, 0, 0];
+RAM._storage[3] = [1, 1, 0, 0, 0, 0, 0, 0];
+RAM._storage[4] = [0, 1, 1, 0, 1, 1, 0, 1];
+RAM._storage[5] = [1, 1, 0, 0, 0, 0, 0, 0];
 
-RAM._storage[15] = [0, 0, 0, 0, 0, 1, 0, 1];
+RAM._storage[15] = [0, 0, 0, 0, 0, 0, 1, 1];
 RAM._storage[14] = [0, 0, 0, 0, 0, 0, 1, 1];
 
 
