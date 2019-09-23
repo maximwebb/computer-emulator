@@ -10,29 +10,122 @@
             background: #444;
         }
         h1 {
-            font-size: 60px;
+            font-size: 40px;
         }
         .module {
             border: 2px solid #e8e8e8;
-            padding: 10px 50px;
-            width: 40%;
+            padding: 0px 50px;
+            width: 300px;
+        }
+        .module p {
+            font-size: 150%;
         }
         #container {
-            margin: auto;
-            width: 50%;
+            margin: 300px auto;
+            display: flex;
+            flex-wrap: wrap;
+            width: 1500px;
+            height: 600px;
             text-align: center;
+            align-content: space-around;
+            justify-content: space-between;
+
         }
     </style>
     <script src="main.js"></script>
 </head>
-<body>
-<div id="container">
-    <h1>8 Bit Computer Emulator</h1>
+<body onload="startComputer()">
 
-    <div class="module" id="register-a">
+<div style="text-align: center">
+    <h1>8 Bit Computer Emulator</h1>
+    <!--<br></br>-->
+</div>
+
+<div id="container">
+    <div class="module" id="CLK-container">
+        <h2>Clock</h2>
+        <p id="CLK"></p>
+    </div>
+    <div class="module" id="PC-container">
+        <h2>Program Counter</h2>
+        <p id="PC"></p>
+    </div>
+    <div class="module" id="A-container">
         <h2>Register A</h2>
-        <p id="register-a-val"></p>
+        <p id="A"></p>
+    </div>
+    <div class="module" id="O-container">
+        <h2>Register O</h2>
+        <p id="O"></p>
+    </div>
+    <div class="module" id="CPU-container">
+        <h2>CPU</h2>
+        <p id="CPU"></p>
+    </div>
+    <div class="module" id="ALU-container">
+        <h2>ALU</h2>
+        <p id="ALU"></p>
+    </div>
+    <div class="module" id="ADR-container">
+        <h2>Address Register</h2>
+        <p id="ADR"></p>
+    </div>
+    <div class="module" id="IR-container">
+        <h2>Instruction Register</h2>
+        <p id="IR"></p>
+    </div>
+    <div class="module" id="B-container">
+        <h2>Register B</h2>
+        <p id="B"></p>
+    </div>
+    <div class="module" id="RAM-container">
+        <h2>RAM</h2>
+        <p id="RAM"></p>
+    </div>
+    <div class="module" id="CODE-container">
+        <h2>Code</h2>
+        <div id="CODE"></div>
     </div>
 </div>
+
+<script type="text/javascript">
+	buildComputer();
+
+	let code =
+		`LDA 0xF;
+		SUBO 0xE;
+		JMPZ 0x4;
+		STOO 0xD;
+		HLT;
+		STOA 0xD;
+		HLT`;
+
+	let data = [
+		["00001111", "0xF"],
+		["00001011", "0xE"]
+	];
+
+	CPU.programComputer(code, data);
+    function startComputer() {
+    	CPU.startComputer(1000);
+    	let formattedCode = code.replace(/\n/g, "");
+		formattedCode = formattedCode.split(/;\s+|;/);
+
+		let codeLength = formattedCode.length;
+		let codeText = "";
+
+        for (let line in formattedCode) {
+        	codeText += `<p id="codeLine-${line}">${line}: ${formattedCode[line]} </p>`;
+		}
+		document.getElementById("CODE").innerHTML = codeText;
+
+    	let t = setInterval(function() {
+            let outputs = CPU.displayModuleOutputs();
+            for (let key of Object.keys(outputs)) {
+            	document.getElementById(key).innerHTML = outputs[key];
+            }
+        }, 50);
+    }
+</script>
 </body>
 </html>

@@ -9,12 +9,12 @@ function cloneArr(arr) {
 }
 
 class BusModule {
-	constructor(busConnectMode) {
+	/* Only one bus so connects to BUS by default */
+	constructor(busConnectMode, busType = BUS) {
 		this._busConnectMode = busConnectMode;
-		BUS.connectedModules.push(this);
+		busType.connectedModules.push(this);
 	}
 }
-
 
 class Register extends BusModule {
 	constructor(busConnectMode) {
@@ -46,6 +46,22 @@ class Register extends BusModule {
 	set busConnectMode(mode) {
 		this._busConnectMode = mode;
 		this.updateState();
+	}
+
+	formatOutput() {
+		let busConnectString;
+		if (this._busConnectMode === 0) {
+			busConnectString = "FLOAT";
+		}
+		else if (this._busConnectMode === 1) {
+			busConnectString = "READ";
+		}
+		else {
+			busConnectString = "WRITE";
+		}
+		return `Tristate mode: ${busConnectString}<br>
+		Register value: ${this.storage.join("")}
+		`;
 	}
 }
 
@@ -110,6 +126,23 @@ class Alu extends Register {
 			this._busConnectMode = mode;
 			this.updateState();
 		}
+	}
+
+	formatOutput() {
+		let busConnectString;
+		if (this._busConnectMode === 0) {
+			busConnectString = "FLOAT";
+		}
+		else if (this._busConnectMode === 1) {
+			busConnectString = "READ";
+		}
+		else {
+			busConnectString = "WRITE";
+		}
+		return `Tristate mode: ${busConnectString}<br>
+		ALU value: ${this.storage.join("")}<br>
+		Arithmetic mode: ${(this.subtractMode) ? "ADD" : "SUBTRACT"}
+		`;
 	}
 }
 
@@ -236,20 +269,57 @@ class Memory extends BusModule {
 		this._busConnectMode = mode;
 		this.updateState();
 	}
+
+	formatOutput() {
+		let busConnectString;
+		if (this._busConnectMode === 0) {
+			busConnectString = "FLOAT";
+		}
+		else if (this._busConnectMode === 1) {
+			busConnectString = "READ";
+		}
+		else {
+			busConnectString = "WRITE";
+		}
+
+		let data = this._storage.map((x, ind) => (ind + ": " + x.join("") + "<br>"));
+		return `Tristate mode: ${busConnectString}<br>
+		Memory: ${data.join("")}
+		`;
+	}
+
 }
 
 class Clock {
-	constructor(command, speed) {
+	constructor() {
 		this.output = 0;
-		this.command = command;
 		this.mode = 0;
+		this.speed;
+		this.loop;
+	}
+
+	start(speed) {
 		this.speed = speed;
-		this.loop = setInterval(this.command, this.speed);
+		this.loop = setInterval(this.tick, this.speed);
+	}
+
+	halt() {
+		clearInterval(this.loop);
+	}
+
+	tick() {
+		this.output = +!this.output;
+		if (this.output) {
+			CPU.executeMicroInstruction();
+		}
+		else {
+			CPU.zeroPins();
+		}
 	}
 
 	toggleMode(mode = +!this.mode) {
 		if (mode === 0) {
-			this.loop = setInterval(this.command, this.speed);
+			this.loop = setInterval(this.tick(), this.speed);
 		}
 		else {
 			clearInterval(this.loop);
@@ -260,8 +330,8 @@ class Clock {
 		setTimeout(() => (this.output = 0), this.speed);
 	}
 
-	halt() {
-		clearInterval(this.loop);
+	formatOutput() {
+		return `Mode: ${this.mode}`;
 	}
 }
 
@@ -316,7 +386,6 @@ class ControlUnit {
 		let YLD = 0b000000000000000010;
 		let HLT = 0b000000000000000001;
 
-		//TODO: assign branch logic instructions properties that can be checked.
 		this.instructionSet = [
 			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AI, YLD]], //LDA
 			[[PCO + MAI, RO + II + PCC, IO + MAI, RO + AO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AO, YLD], [PCO + MAI, RO + II + PCC, IO + MAI, RO + AO, YLD]], //LDO
@@ -335,10 +404,13 @@ class ControlUnit {
 
 		/* Current instruction held in instruction register */
 		this.instruction = [0, 0, 0, 0, 0, 0, 0, 0];
-		/* Set whenever an instruction requires branching logic */
 		this.microInstructionCount = 0;
+
+		this.instructionWords = { LDA: "0000", LDO: "0001", ADDA: "0010", ADDO: "0011", SUBA: "0100", SUBO: "0101", STOA: "0110", STOO: "0111", SWAB: "1000", SWAO: "1001", JMPZ: "1010", JMPC: "1011", HLT: "1100"};
+
 	}
 
+	/* Triggered on rising edge of clock */
 	updateAllPins() {
 		this.connectedModules["ALU"].updateControlPins(this.pins.SO, this.pins.SU);
 		this.connectedModules["A"].updateControlPins(this.pins.AI, this.pins.AO);
@@ -350,7 +422,7 @@ class ControlUnit {
 		this.connectedModules["IR"].updateControlPins(this.pins.II, this.pins.IO);
 
 		if (this.pins.HLT) {
-			console.log(logger.next().value);
+			console.log(this.connectedModules.RAM._storage[13]);
 			CLK.halt();
 		}
 	}
@@ -367,7 +439,7 @@ class ControlUnit {
 	fetchMicroInstruction() {
 		let instrAdr = parseInt(this.instruction.slice(0, 4).join(""), 2);
 		let microInstr;
-		let flag = this.flags.CARRY + this.flags.ZERO * 2;
+		let flag = this.flags.CARRY * 2 + this.flags.ZERO;
 		microInstr = (this.instructionSet[instrAdr][flag][this.microInstructionCount] + (1 << this.pinNumber)).toString(2).split("");
 		microInstr.shift();
 		return microInstr;
@@ -375,14 +447,13 @@ class ControlUnit {
 
 	executeMicroInstruction() {
 		let microInstr = this.fetchMicroInstruction();
-		console.log(microInstr.map((pinVal, ind) => (Object.keys(this.pins)[ind] + ": " + pinVal)).join(", "));
+		//console.log(microInstr.map((pinVal, ind) => (Object.keys(this.pins)[ind] + ": " + pinVal)).join(", "));
 		microInstr.forEach((pinValue, ind) => {
 			let key = Object.keys(this.pins)[ind];
 			this.pins[key] = +pinValue;
 		});
 
 		if (this.pins.YLD) {
-			console.log(logger.next().value);
 			this.microInstructionCount = 0;
 			console.log(PC.getValue());
 		}
@@ -390,10 +461,58 @@ class ControlUnit {
 			this.updateAllPins();
 			this.microInstructionCount++;
 		}
-
-		//console.log(microInstr.map((pinVal, ind) => (Object.keys(this.pins)[ind] + ": " + pinVal)).join(", "));
 	}
 
+	/* Converts assembly code into machine code */
+	assembleCode(assemblyCode) {
+		assemblyCode = assemblyCode.replace(/<br>/g, "");
+		let commandArr = assemblyCode.split(/;\s+|;/);
+		for (let i in commandArr) {
+			/* Converts instruction word into machine instruction */
+			commandArr[i] = commandArr[i].split(" ");
+			commandArr[i][0] = this.instructionWords[commandArr[i][0]];
+
+			/* For HLT command, writes 0 to address */
+			if (commandArr[i].length === 1) {
+				commandArr[i][1] = "0x0";
+			}
+
+			/* Formats address from hex code to 8 bit binary number */
+			commandArr[i][1] = (parseInt(commandArr[i][1])).toString(2);
+			commandArr[i][1] = ((1 << ADRLEN - commandArr[i][1].length).toString(2) + commandArr[i][1]).slice(1);
+			commandArr[i] = ((commandArr[i][0] + commandArr[i][1]).split("")).map((x) => (parseInt(x)));
+		}
+		console.log(commandArr);
+		return commandArr;
+	}
+
+
+	programComputer(assemblyCode, data) {
+		let machineCode = this.assembleCode(assemblyCode);
+		for (let i in machineCode) {
+			this.connectedModules["RAM"]._storage[i] = machineCode[i];
+		}
+		for (let i in data) {
+			this.connectedModules["RAM"]._storage[parseInt(data[i][1])] = (data[i][0].split("")).map((x) => (parseInt(x)));
+		}
+	}
+
+	startComputer(clockSpeed) {
+		this.connectedModules["CLK"].start(clockSpeed);
+	}
+
+	displayModuleOutputs() {
+		let output = {};
+		for (let module of Object.keys(this.connectedModules)) {
+			output[module] = this.connectedModules[module].formatOutput();
+		}
+		output.CPU = `MicroInstruction: ${this.microInstructionCount}<br>
+		Instruction: ${this.instruction}<br>
+		Carry Flag: ${this.flags.CARRY}<br>
+		Zero Flag: ${this.flags.ZERO}`;
+
+		return output;
+	}
 }
 
 class Bus extends Array {
@@ -442,15 +561,7 @@ PC = new ProgramCounter();
 CPU = new ControlUnit();
 IR = new InstructionRegister();
 
-CLK = new Clock(function() {
-	this.output = +!this.output;
-	if (this.output) {
-		CPU.executeMicroInstruction();
-	}
-	else {
-		CPU.zeroPins();
-	}
-}, 10);
+CLK = new Clock();
 
 function buildComputer() {
 	CPU.connectedModules["A"] = A;
@@ -461,28 +572,9 @@ function buildComputer() {
 	CPU.connectedModules["ALU"] = ALU;
 	CPU.connectedModules["PC"] = PC;
 	CPU.connectedModules["IR"] = IR;
+	CPU.connectedModules["CLK"] = CLK;
 }
 
-function* logInfo() {
-	yield "Register A loaded with: " + A.storage;
-	yield "Register B loaded with: " + B.storage;
-	yield "Register A loaded with: " + A.storage;
-	yield "Result of computation: " + RAM._storage[13].join("");
-	yield "Result of computation: " + RAM._storage[13].join("");
-}
+//buildComputer();
 
-let logger = logInfo();
-
-/* Write program */
-RAM._storage[0] = [0, 0, 0, 0, 1, 1, 1, 1];
-RAM._storage[1] = [0, 1, 0, 1, 1, 1, 1, 0];
-RAM._storage[2] = [1, 0, 1, 0, 0, 1, 0, 0];
-RAM._storage[3] = [1, 1, 0, 0, 0, 0, 0, 0];
-RAM._storage[4] = [0, 1, 1, 0, 1, 1, 0, 1];
-RAM._storage[5] = [1, 1, 0, 0, 0, 0, 0, 0];
-
-RAM._storage[15] = [0, 0, 0, 0, 0, 0, 1, 1];
-RAM._storage[14] = [0, 0, 0, 0, 0, 0, 1, 1];
-
-
-buildComputer();
+//CPU.startComputer(50);
